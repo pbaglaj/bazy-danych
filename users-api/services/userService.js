@@ -39,4 +39,8 @@ const create = async ({ name, email }) => {
   return toDTO(row);
 };
 
-module.exports = { findAll, findById, create };
+const deleteById = async (id) => {
+  await userRepository.deleteById(id);
+}
+
+module.exports = { findAll, findById, create, deleteById };

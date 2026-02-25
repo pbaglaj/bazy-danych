@@ -51,4 +51,15 @@ const create = async (req, res) => {
   } catch (err) { handleError(err, res); }
 };
 
-module.exports = { getAll, getOne, create };
+const deleteById = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID must be a number' });
+    await userService.deleteById(id);
+    res.status(204)
+       .send()
+       .json({ message: `User ${id} deleted` });
+  } catch (err) { handleError(err, res); }
+};
+
+module.exports = { getAll, getOne, create, deleteById };
