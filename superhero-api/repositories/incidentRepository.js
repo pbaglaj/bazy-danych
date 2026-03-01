@@ -2,7 +2,7 @@ const pool = require('../db');
 
 const findAll = async ({ limit = 20, offset = 0 } = {}) => {
   const { rows } = await pool.query(
-    `SELECT id, location, power, level, status, hero_id
+    `SELECT id, location, level, status, hero_id
       FROM incidents
       ORDER BY id
       LIMIT $1 OFFSET $2`,
@@ -11,12 +11,12 @@ const findAll = async ({ limit = 20, offset = 0 } = {}) => {
   return rows;
 };
 
-const create = async ({ location, power, level }) => {
+const create = async ({ location, level }) => {
   const { rows } = await pool.query(
-    `INSERT INTO incidents (location, power, level)
-    VALUES ($1, $2, $3)
-    RETURNING id, location, power, level`,
-    [location, power, level]
+    `INSERT INTO incidents (location, level)
+    VALUES ($1, $2)
+    RETURNING id, location, level`,
+    [location, level]
     );
     return rows[0];
 };
