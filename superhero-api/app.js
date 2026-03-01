@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const errorHandler = require('./middlewares/errorHandler');
 const incidentRoutes = require('./routes/incidentRoutes');
 const heroRoutes = require('./routes/heroRoutes');
 
