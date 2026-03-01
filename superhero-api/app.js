@@ -1,4 +1,5 @@
 require('dotenv').config();
+const express = require('express');
 
 const incidentRoutes = require('./routes/incidentRoutes');
 const heroRoutes = require('./routes/heroRoutes');
