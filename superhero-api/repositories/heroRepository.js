@@ -21,4 +21,14 @@ const create = async ({ name, power }) => {
   return rows[0];
 };
 
-module.exports = { findAll, create };
+const findByName = async (name) => {
+  const { rows } = await pool.query(
+    `SELECT id, name, power, status
+      FROM heroes
+      WHERE name = $1`,
+    [name]
+  );
+  return rows[0];
+};
+
+module.exports = { findAll, create, findByName };

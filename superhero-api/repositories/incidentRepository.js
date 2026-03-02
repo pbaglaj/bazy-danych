@@ -59,7 +59,7 @@ const closeIncident = async (incidentId) => {
         const heroId = incidentRes.rows[0].hero_id;
         await client.query(
             'UPDATE incidents SET status = $1 WHERE id = $2',
-            ['closed', incidentId]
+            ['resolved', incidentId]
         );
         await client.query(
             'UPDATE heroes SET status = $1 WHERE id = $2',
@@ -74,4 +74,14 @@ const closeIncident = async (incidentId) => {
     }
 }
 
-module.exports = { assignHeroToIncident, findAll, create, closeIncident };
+const findByLocationAndLevel = async (location, level) => {
+  const { rows } = await pool.query(
+    `SELECT id, location, level, status, hero_id
+      FROM incidents
+      WHERE location = $1 AND level = $2`,
+    [location, level]
+  );
+  return rows[0];
+};
+
+module.exports = { assignHeroToIncident, findAll, create, closeIncident, findByLocationAndLevel };
