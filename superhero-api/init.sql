@@ -15,5 +15,5 @@ CREATE TABLE incidents (
     location TEXT NOT NULL,
     level incident_level NOT NULL,
     status incident_status DEFAULT 'open',
-    hero_id INTEGER UNIQUE REFERENCES heroes(id) ON DELETE SET NULL
+    hero_id INTEGER REFERENCES heroes(id) ON DELETE SET NULL
 );
