@@ -1,12 +1,20 @@
 const pool = require('../db');
 
-const findAll = async ({ limit = 20, offset = 0 } = {}) => {
+const findAll = async ({ status, power } = {}) => {
+  const conditions = [];
+  const params     = [];
+
+  if (status) { conditions.push(`status = $${params.length + 1}`); params.push(status); }
+  if (power)  { conditions.push(`power  = $${params.length + 1}`); params.push(power);  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
   const { rows } = await pool.query(
     `SELECT id, name, power, status
-      FROM heroes
-      ORDER BY id
-      LIMIT $1 OFFSET $2`,
-    [limit, offset]
+       FROM heroes
+       ${where}
+       ORDER BY id`,
+    params
   );
   return rows;
 };
@@ -31,4 +39,24 @@ const findByName = async (name) => {
   return rows[0];
 };
 
-module.exports = { findAll, create, findByName };
+const findById = async (id) => {
+  const { rows } = await pool.query(
+    `SELECT id, name, power, status
+      FROM heroes
+      WHERE id = $1`,
+    [id]
+  );
+  return rows[0];
+};
+
+const updateStatus = async (client, id, newStatus, expectedStatus) => {
+  const { rows } = await client.query(
+    `UPDATE heroes SET status = $1
+     WHERE id = $2 AND status = $3
+     RETURNING id, name, power, status`,
+    [newStatus, id, expectedStatus]
+  );
+  return rows[0];
+};
+
+module.exports = { findAll, create, findByName, findById, updateStatus };
