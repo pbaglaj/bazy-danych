@@ -16,13 +16,12 @@ const handleError = (err, res) => {
   res.status(status).json(body);
 };
 
-// GET /api/v1/incidents?limit=10&offset=0
+// GET /api/v1/incidents?level=critical&status=open
 const getAll = async (req, res) => {
   try {
-    const limit  = Math.min(parseInt(req.query.limit)  || 20, 100);
-    const offset = Math.max(parseInt(req.query.offset) || 0,  0);
-    const incidents  = await incidentService.findAll({ limit, offset });
-    res.json({ data: incidents, meta: { limit, offset, count: incidents.length } });
+    const { level, status } = req.query;
+    const incidents = await incidentService.findAll({ level, status });
+    res.json({ data: incidents, meta: { count: incidents.length } });
   } catch (err) { handleError(err, res); }
 };
 

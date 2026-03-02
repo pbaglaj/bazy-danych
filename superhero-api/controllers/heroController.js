@@ -16,13 +16,12 @@ const handleError = (err, res) => {
   res.status(status).json(body);
 };
 
-// GET /api/v1/heroes?limit=10&offset=0
+// GET /api/v1/heroes?status=available&power=flight
 const getAll = async (req, res) => {
   try {
-    const limit  = Math.min(parseInt(req.query.limit)  || 20, 100);
-    const offset = Math.max(parseInt(req.query.offset) || 0,  0);
-    const heroes  = await heroService.findAll({ limit, offset });
-    res.json({ data: heroes, meta: { limit, offset, count: heroes.length } });
+    const { status, power } = req.query;
+    const heroes = await heroService.findAll({ status, power });
+    res.json({ data: heroes, meta: { count: heroes.length } });
   } catch (err) { handleError(err, res); }
 };
 
