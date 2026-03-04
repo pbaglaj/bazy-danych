@@ -1,62 +1,36 @@
-const pool = require('../db');
+const db = require('../db/knex');
 
-const findAll = async ({ status, power } = {}) => {
-  const conditions = [];
-  const params     = [];
+const findAll = async (filters = {}) => {
+  const query = db('heroes').select('id', 'name', 'power', 'status').orderBy('id');
 
-  if (status) { conditions.push(`status = $${params.length + 1}`); params.push(status); }
-  if (power)  { conditions.push(`power  = $${params.length + 1}`); params.push(power);  }
+  if (filters.status) {
+    query.where('status', filters.status);
+  }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  if (filters.power) {
+    query.where('power', filters.power);
+  }
 
-  const { rows } = await pool.query(
-    `SELECT id, name, power, status
-       FROM heroes
-       ${where}
-       ORDER BY id`,
-    params
-  );
-  return rows;
+  return await query;
 };
 
 const create = async ({ name, power }) => {
-  const { rows } = await pool.query(
-    `INSERT INTO heroes (name, power)
-     VALUES ($1, $2)
-     RETURNING id, name, power`,
-    [name, power]
-  );
-  return rows[0];
-};
-
-const findByName = async (name) => {
-  const { rows } = await pool.query(
-    `SELECT id, name, power, status
-      FROM heroes
-      WHERE name = $1`,
-    [name]
-  );
-  return rows[0];
+  const [hero] = await db('heroes')
+    .insert({ name, power })
+    .returning(['id', 'name', 'power', 'status']);
+  
+  return hero;
 };
 
 const findById = async (id) => {
-  const { rows } = await pool.query(
-    `SELECT id, name, power, status
-      FROM heroes
-      WHERE id = $1`,
-    [id]
-  );
-  return rows[0];
+  return await db('heroes').where({ id }).first();
 };
 
-const updateStatus = async (client, id, newStatus, expectedStatus) => {
-  const { rows } = await client.query(
-    `UPDATE heroes SET status = $1
-     WHERE id = $2 AND status = $3
-     RETURNING id, name, power, status`,
-    [newStatus, id, expectedStatus]
-  );
-  return rows[0];
+const findByName = async (name) => {
+  return await db('heroes')
+    .where({ name })
+    .select('id', 'name', 'power', 'status')
+    .first(); 
 };
 
-module.exports = { findAll, create, findByName, findById, updateStatus };
+module.exports = { findAll, create, findByName, findById };
