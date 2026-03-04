@@ -1,36 +1,81 @@
 const db = require('../db/knex');
 
-const findAll = async (filters = {}) => {
-  const query = db('heroes').select('id', 'name', 'power', 'status').orderBy('id');
+const ALLOWED_SORT_COLUMNS = ['name', 'missions_count', 'created_at'];
 
-  if (filters.status) {
-    query.where('status', filters.status);
-  }
+const findAll = async ({ filters = {}, sort = {}, pagination = {} }) => {
+  const { status, power } = filters;
+  const { sortBy = 'created_at', sortOrder = 'asc' } = sort;
+  const { limit, offset } = pagination;
 
-  if (filters.power) {
-    query.where('power', filters.power);
-  }
+  const base = db('heroes');
 
-  return await query;
+  if (status) base.where('status', status);
+  if (power) base.where('power', power);
+
+  const column = ALLOWED_SORT_COLUMNS.includes(sortBy) ? sortBy : 'created_at';
+
+  const countQuery = base.clone().count('* as total').first();
+
+  const dataQuery = base.clone()
+    .select('id', 'name', 'power', 'status', 'missions_count', 'created_at', 'updated_at')
+    .orderBy(column, sortOrder === 'desc' ? 'desc' : 'asc')
+    .limit(limit)
+    .offset(offset);
+
+  const [data, countResult] = await Promise.all([dataQuery, countQuery]);
+
+  const total = parseInt(countResult.total, 10) || 0;
+
+  return { data, total };
+};
+
+const findById = async (id, trx) => {
+  const qb = trx || db;
+  return qb('heroes').where({ id }).first();
+};
+
+const findByName = async (name) => {
+  return db('heroes')
+    .where({ name })
+    .first();
 };
 
 const create = async ({ name, power }) => {
   const [hero] = await db('heroes')
     .insert({ name, power })
-    .returning(['id', 'name', 'power', 'status']);
-  
+    .returning('*');
+
   return hero;
 };
 
-const findById = async (id) => {
-  return await db('heroes').where({ id }).first();
+const update = async (id, fields, trx) => {
+  const qb = trx || db;
+  const [hero] = await qb('heroes')
+    .where({ id })
+    .update({ ...fields, updated_at: db.fn.now() })
+    .returning('*');
+
+  return hero;
 };
 
-const findByName = async (name) => {
-  return await db('heroes')
-    .where({ name })
-    .select('id', 'name', 'power', 'status')
-    .first(); 
+const findIncidentsForHero = async ({ heroId, pagination = {} }) => {
+  const { limit, offset } = pagination;
+
+  const base = db('incidents').where('hero_id', heroId);
+
+  const countQuery = base.clone().count('* as total').first();
+
+  const dataQuery = base.clone()
+    .select('*')
+    .orderBy('assigned_at', 'desc')
+    .limit(limit)
+    .offset(offset);
+
+  const [data, countResult] = await Promise.all([dataQuery, countQuery]);
+
+  const total = parseInt(countResult.total, 10) || 0;
+
+  return { data, total };
 };
 
-module.exports = { findAll, create, findByName, findById };
+module.exports = { findAll, findById, findByName, create, update, findIncidentsForHero };

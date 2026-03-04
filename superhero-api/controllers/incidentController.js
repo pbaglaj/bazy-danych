@@ -16,22 +16,30 @@ const handleError = (err, res) => {
   res.status(status).json(body);
 };
 
-// GET /api/v1/incidents?level=critical&status=open
+// GET /api/v1/incidents?level=critical&status=open&district=downtown&page=1&pageSize=20
 const getAll = async (req, res) => {
   try {
-    const { level, status } = req.query;
-    const incidents = await incidentService.findAll({ level, status });
-    res.json({ data: incidents, meta: { count: incidents.length } });
+    const result = await incidentService.findAll(req.query);
+    res.json({ data: result.data, pagination: result.pagination });
+  } catch (err) { handleError(err, res); }
+};
+
+// GET /api/v1/incidents/:id
+const getById = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const incident = await incidentService.findById(id);
+    res.json({ data: incident });
   } catch (err) { handleError(err, res); }
 };
 
 // POST /api/v1/incidents
 const create = async (req, res) => {
   try {
-    const { location, level } = req.body || {};
+    const { location, level, district } = req.body || {};
     if (!location || !level)
       return res.status(400).json({ error: 'location and level are required' });
-    const incident = await incidentService.create({ location, level });
+    const incident = await incidentService.create({ location, level, district });
     res.status(201)
        .location(`/api/v1/incidents/${incident.id}`)
        .json({ data: incident });
@@ -57,4 +65,4 @@ const closeIncident = async (req, res) => {
   } catch (err) { handleError(err, res); }
 };
 
-module.exports = { getAll, create, assignHeroToIncident, closeIncident };
+module.exports = { getAll, create, assignHeroToIncident, closeIncident, getById };

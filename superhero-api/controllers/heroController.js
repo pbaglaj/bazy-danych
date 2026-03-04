@@ -16,12 +16,20 @@ const handleError = (err, res) => {
   res.status(status).json(body);
 };
 
-// GET /api/v1/heroes?status=available&power=flight
+// GET /api/v1/heroes?status=available&power=flight&sortBy=name&sortOrder=asc&page=1&pageSize=20
 const getAll = async (req, res) => {
   try {
-    const { status, power } = req.query;
-    const heroes = await heroService.findAll({ status, power });
-    res.json({ data: heroes, meta: { count: heroes.length } });
+    const result = await heroService.findAll(req.query);
+    res.json({ data: result.data, pagination: result.pagination });
+  } catch (err) { handleError(err, res); }
+};
+
+// GET /api/v1/heroes/:id
+const getById = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const hero = await heroService.findById(id);
+    res.json({ data: hero });
   } catch (err) { handleError(err, res); }
 };
 
@@ -38,4 +46,22 @@ const create = async (req, res) => {
   } catch (err) { handleError(err, res); }
 };
 
-module.exports = { getAll, create };
+// PATCH /api/v1/heroes/:id
+const update = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const hero = await heroService.update(id, req.body || {});
+    res.json({ data: hero });
+  } catch (err) { handleError(err, res); }
+};
+
+// GET /api/v1/heroes/:id/incidents
+const getIncidentsForHero = async (req, res) => {
+  try {
+    const heroId = parseInt(req.params.id, 10);
+    const result = await heroService.findIncidentsForHero(heroId, req.query);
+    res.json({ data: result.data, pagination: result.pagination });
+  } catch (err) { handleError(err, res); }
+};
+
+module.exports = { getAll, create, getById, getIncidentsForHero, update };
