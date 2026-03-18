@@ -1,4 +1,4 @@
-const db = require('../db/knex');
+const { sequelize } = require('../models');
 const incidentRepository = require('../repositories/incidentRepository');
 const heroRepository = require('../repositories/heroRepository');
 
@@ -14,6 +14,17 @@ const toDTO = (row) => ({
   level:       row.level,
   status:      row.status,
   heroId:      row.hero_id || null,
+  hero:        row.hero
+    ? {
+        id: row.hero.id,
+        name: row.hero.name,
+        power: row.hero.power,
+        status: row.hero.status,
+        missions_count: row.hero.missions_count,
+        created_at: row.hero.created_at,
+        updated_at: row.hero.updated_at,
+      }
+    : null,
   assigned_at: row.assigned_at || null,
   resolved_at: row.resolved_at || null,
   created_at:  row.created_at,
@@ -78,14 +89,17 @@ const create = async ({ location, level, district }) => {
 const assignHeroToIncident = async (incidentId, heroId) => {
   if (!heroId) throw makeError('heroId is required', 'VALIDATION_ERROR');
 
-  const result = await db.transaction(async (trx) => {
-    const incident = await incidentRepository.findById(incidentId, trx);
+  const result = await sequelize.transaction(async (t) => {
+    const incident = await incidentRepository.findById(incidentId, t);
     if (!incident) throw makeError('Incident not found', 'NOT_FOUND');
     if (incident.status !== 'open') throw makeError('Incident is not open', 'CONFLICT');
 
-    const hero = await heroRepository.findById(heroId, trx);
-    if (!hero) throw makeError('Hero not found', 'NOT_FOUND');
-    if (hero.status !== 'available') throw makeError('Hero is not available', 'CONFLICT');
+    const hero = await heroRepository.findAvailableById(heroId, t);
+    if (!hero) {
+      const existingHero = await heroRepository.findById(heroId, t);
+      if (!existingHero) throw makeError('Hero not found', 'NOT_FOUND');
+      throw makeError('Hero is not available', 'CONFLICT');
+    }
 
     if (incident.level === 'critical' && !CRITICAL_POWERS.includes(hero.power)) {
       throw makeError(
@@ -94,13 +108,13 @@ const assignHeroToIncident = async (incidentId, heroId) => {
       );
     }
 
-    await heroRepository.update(heroId, { status: 'busy', missions_count: hero.missions_count + 1 }, trx);
+    await heroRepository.update(heroId, { status: 'busy' }, t);
 
     const updatedIncident = await incidentRepository.update(incidentId, {
       hero_id: heroId,
       status: 'assigned',
       assigned_at: new Date(),
-    }, trx);
+    }, t);
 
     return updatedIncident;
   });
@@ -109,17 +123,17 @@ const assignHeroToIncident = async (incidentId, heroId) => {
 };
 
 const closeIncident = async (incidentId) => {
-  const result = await db.transaction(async (trx) => {
-    const incident = await incidentRepository.findById(incidentId, trx);
+  const result = await sequelize.transaction(async (t) => {
+    const incident = await incidentRepository.findById(incidentId, t);
     if (!incident) throw makeError('Incident not found', 'NOT_FOUND');
     if (incident.status !== 'assigned') throw makeError('Incident is not assigned', 'CONFLICT');
 
-    await heroRepository.update(incident.hero_id, { status: 'available' }, trx);
+    await heroRepository.update(incident.hero_id, { status: 'available' }, t);
 
     const updatedIncident = await incidentRepository.update(incidentId, {
       status: 'resolved',
       resolved_at: new Date(),
-    }, trx);
+    }, t);
 
     return updatedIncident;
   });

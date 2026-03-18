@@ -1,4 +1,4 @@
-const db = require('../db/knex');
+const { Incident, Hero } = require('../models');
 
 const ALLOWED_SORT_COLUMNS = ['name', 'missions_count', 'created_at'];
 
@@ -7,75 +7,81 @@ const findAll = async ({ filters = {}, sort = {}, pagination = {} }) => {
   const { sortBy = 'created_at', sortOrder = 'asc' } = sort;
   const { limit, offset } = pagination;
 
-  const base = db('heroes');
+  const where = {};
 
-  if (status) base.where('status', status);
-  if (power) base.where('power', power);
+  if (status) where.status = status;
+  if (power) where.power = power;
 
   const column = ALLOWED_SORT_COLUMNS.includes(sortBy) ? sortBy : 'created_at';
 
-  const countQuery = base.clone().count('* as total').first();
+  const { rows, count } = await Hero.findAndCountAll({
+    where,
+    attributes: ['id', 'name', 'power', 'status', 'missions_count', 'created_at', 'updated_at'],
+    order: [[column, sortOrder === 'desc' ? 'DESC' : 'ASC']],
+    limit,
+    offset,
+  });
 
-  const dataQuery = base.clone()
-    .select('id', 'name', 'power', 'status', 'missions_count', 'created_at', 'updated_at')
-    .orderBy(column, sortOrder === 'desc' ? 'desc' : 'asc')
-    .limit(limit)
-    .offset(offset);
-
-  const [data, countResult] = await Promise.all([dataQuery, countQuery]);
-
-  const total = parseInt(countResult.total, 10) || 0;
+  const data = rows.map((hero) => hero.get({ plain: true }));
+  const total = Number(count) || 0;
 
   return { data, total };
 };
 
-const findById = async (id, trx) => {
-  const qb = trx || db;
-  return qb('heroes').where({ id }).first();
+const findById = async (id, transaction) => {
+  const options = { transaction };
+  if (transaction) {
+    options.lock = true;
+  }
+
+  const hero = await Hero.findByPk(id, options);
+  return hero ? hero.get({ plain: true }) : null;
+};
+
+const findAvailableById = async (id, transaction) => {
+  const options = { transaction };
+  if (transaction) {
+    options.lock = true;
+  }
+
+  const hero = await Hero.scope('available').findByPk(id, options);
+  return hero ? hero.get({ plain: true }) : null;
 };
 
 const findByName = async (name) => {
-  return db('heroes')
-    .where({ name })
-    .first();
+  const hero = await Hero.findOne({ where: { name } });
+  return hero ? hero.get({ plain: true }) : null;
 };
 
 const create = async ({ name, power }) => {
-  const [hero] = await db('heroes')
-    .insert({ name, power })
-    .returning('*');
-
-  return hero;
+  const hero = await Hero.create({ name, power });
+  return hero.get({ plain: true });
 };
 
-const update = async (id, fields, trx) => {
-  const qb = trx || db;
-  const [hero] = await qb('heroes')
-    .where({ id })
-    .update({ ...fields, updated_at: db.fn.now() })
-    .returning('*');
+const update = async (id, fields, transaction) => {
+  const [, rows] = await Hero.update(fields, {
+    where: { id },
+    returning: true,
+    transaction,
+  });
 
-  return hero;
+  return rows[0] ? rows[0].get({ plain: true }) : null;
 };
 
 const findIncidentsForHero = async ({ heroId, pagination = {} }) => {
   const { limit, offset } = pagination;
 
-  const base = db('incidents').where('hero_id', heroId);
+  const { rows, count } = await Incident.findAndCountAll({
+    where: { hero_id: heroId },
+    order: [['assigned_at', 'DESC']],
+    limit,
+    offset,
+  });
 
-  const countQuery = base.clone().count('* as total').first();
-
-  const dataQuery = base.clone()
-    .select('*')
-    .orderBy('assigned_at', 'desc')
-    .limit(limit)
-    .offset(offset);
-
-  const [data, countResult] = await Promise.all([dataQuery, countQuery]);
-
-  const total = parseInt(countResult.total, 10) || 0;
+  const data = rows.map((incident) => incident.get({ plain: true }));
+  const total = Number(count) || 0;
 
   return { data, total };
 };
 
-module.exports = { findAll, findById, findByName, create, update, findIncidentsForHero };
+module.exports = { findAll, findById, findAvailableById, findByName, create, update, findIncidentsForHero };

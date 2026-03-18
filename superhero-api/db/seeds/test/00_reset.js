@@ -1,4 +1,17 @@
-exports.seed = async function(knex) {
-  await knex('incidents').del();
-  await knex('heroes').del();
+module.exports = {
+  up: async (queryInterface) => {
+    await queryInterface.bulkDelete('incidents', null, {
+      truncate: true,
+      restartIdentity: true,
+      cascade: true,
+    });
+
+    await queryInterface.bulkDelete('heroes', null, {
+      truncate: true,
+      restartIdentity: true,
+      cascade: true,
+    });
+  },
+
+  down: async () => {},
 };

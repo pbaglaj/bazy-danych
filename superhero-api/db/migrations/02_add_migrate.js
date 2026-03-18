@@ -1,21 +1,31 @@
-exports.up = function(knex) {
-  return knex.schema
-    .alterTable('heroes', (table) => {
-      table.integer('missions_count').defaultTo(0).notNullable();
-    })
-    .alterTable('incidents', (table) => {
-      table.string('district').nullable();
-      table.timestamp('assigned_at').nullable();
-      table.timestamp('resolved_at').nullable();
+module.exports = {
+  up: async (queryInterface, Sequelize) => {
+    await queryInterface.addColumn('heroes', 'missions_count', {
+      type: Sequelize.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     });
-};
 
-exports.down = function(knex) {
-  return knex.schema
-    .alterTable('incidents', (table) => {
-      table.dropColumns('district', 'assigned_at', 'resolved_at');
-    })
-    .alterTable('heroes', (table) => {
-      table.dropColumn('missions_count');
+    await queryInterface.addColumn('incidents', 'district', {
+      type: Sequelize.STRING(100),
+      allowNull: true,
     });
+
+    await queryInterface.addColumn('incidents', 'assigned_at', {
+      type: Sequelize.DATE,
+      allowNull: true,
+    });
+
+    await queryInterface.addColumn('incidents', 'resolved_at', {
+      type: Sequelize.DATE,
+      allowNull: true,
+    });
+  },
+
+  down: async (queryInterface) => {
+    await queryInterface.removeColumn('incidents', 'district');
+    await queryInterface.removeColumn('incidents', 'assigned_at');
+    await queryInterface.removeColumn('incidents', 'resolved_at');
+    await queryInterface.removeColumn('heroes', 'missions_count');
+  },
 };
