@@ -1,4 +1,4 @@
-const { sequelize } = require('../models');
+const prisma = require('../db/prisma');
 const incidentRepository = require('../repositories/incidentRepository');
 const heroRepository = require('../repositories/heroRepository');
 
@@ -25,6 +25,12 @@ const toDTO = (row) => ({
         updated_at: row.hero.updated_at,
       }
     : null,
+  categories: Array.isArray(row.categories)
+    ? row.categories.map((item) => ({
+        categoryId: item.category_id,
+        name: item.category?.name || null,
+      }))
+    : [],
   assigned_at: row.assigned_at || null,
   resolved_at: row.resolved_at || null,
   created_at:  row.created_at,
@@ -52,6 +58,16 @@ const findAll = async (query = {}) => {
   if (status && VALID_STATUSES.includes(status)) filters.status = status;
   if (district) filters.district = district;
 
+  const categoryId = parseInt(query.categoryId, 10);
+  if (!Number.isNaN(categoryId) && categoryId > 0) {
+    filters.categoryId = categoryId;
+  }
+
+  const exclude = parseInt(query.exclude, 10);
+  if (!Number.isNaN(exclude) && exclude > 0) {
+    filters.exclude = exclude;
+  }
+
   const { data, total } = await incidentRepository.findAll({ filters, pagination: { limit, offset } });
 
   return {
@@ -71,17 +87,26 @@ const findById = async (id) => {
   return toDTO(incident);
 };
 
-const create = async ({ location, level, district }) => {
+const create = async ({ location, level, district, categoryIds }) => {
   if (!location?.trim()) throw makeError('Location is required', 'VALIDATION_ERROR');
   if (!level?.trim())    throw makeError('Level is required',    'VALIDATION_ERROR');
 
   if (!VALID_LEVELS.includes(level.trim()))
     throw makeError(`Level must be one of: ${VALID_LEVELS.join(', ')}`, 'VALIDATION_ERROR');
 
+  let validatedCategoryIds = [];
+  if (categoryIds !== undefined) {
+    if (!Array.isArray(categoryIds) || categoryIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+      throw makeError('categoryIds must be an array of positive integers', 'VALIDATION_ERROR');
+    }
+    validatedCategoryIds = [...new Set(categoryIds)];
+  }
+
   const row = await incidentRepository.create({
     location: location.trim(),
     level: level.trim(),
     district: district?.trim() || null,
+    categoryIds: validatedCategoryIds,
   });
   return toDTO(row);
 };
@@ -89,14 +114,14 @@ const create = async ({ location, level, district }) => {
 const assignHeroToIncident = async (incidentId, heroId) => {
   if (!heroId) throw makeError('heroId is required', 'VALIDATION_ERROR');
 
-  const result = await sequelize.transaction(async (t) => {
-    const incident = await incidentRepository.findById(incidentId, t);
+  const result = await prisma.$transaction(async (tx) => {
+    const incident = await incidentRepository.findById(incidentId, tx);
     if (!incident) throw makeError('Incident not found', 'NOT_FOUND');
     if (incident.status !== 'open') throw makeError('Incident is not open', 'CONFLICT');
 
-    const hero = await heroRepository.findAvailableById(heroId, t);
+    const hero = await heroRepository.findAvailableById(heroId, tx);
     if (!hero) {
-      const existingHero = await heroRepository.findById(heroId, t);
+      const existingHero = await heroRepository.findById(heroId, tx);
       if (!existingHero) throw makeError('Hero not found', 'NOT_FOUND');
       throw makeError('Hero is not available', 'CONFLICT');
     }
@@ -108,13 +133,13 @@ const assignHeroToIncident = async (incidentId, heroId) => {
       );
     }
 
-    await heroRepository.update(heroId, { status: 'busy' }, t);
+    await heroRepository.update(heroId, { status: 'busy' }, tx);
 
     const updatedIncident = await incidentRepository.update(incidentId, {
       hero_id: heroId,
       status: 'assigned',
       assigned_at: new Date(),
-    }, t);
+    }, tx);
 
     return updatedIncident;
   });
@@ -123,17 +148,27 @@ const assignHeroToIncident = async (incidentId, heroId) => {
 };
 
 const closeIncident = async (incidentId) => {
-  const result = await sequelize.transaction(async (t) => {
-    const incident = await incidentRepository.findById(incidentId, t);
+  const result = await prisma.$transaction(async (tx) => {
+    const incident = await incidentRepository.findById(incidentId, tx);
     if (!incident) throw makeError('Incident not found', 'NOT_FOUND');
     if (incident.status !== 'assigned') throw makeError('Incident is not assigned', 'CONFLICT');
+    if (!incident.hero_id) throw makeError('Assigned incident has no hero', 'CONFLICT');
 
-    await heroRepository.update(incident.hero_id, { status: 'available' }, t);
+    await heroRepository.update(incident.hero_id, { status: 'available' }, tx);
+
+    await tx.hero.update({
+      where: { id: incident.hero_id },
+      data: {
+        missionsCount: {
+          increment: 1,
+        },
+      },
+    });
 
     const updatedIncident = await incidentRepository.update(incidentId, {
       status: 'resolved',
       resolved_at: new Date(),
-    }, t);
+    }, tx);
 
     return updatedIncident;
   });

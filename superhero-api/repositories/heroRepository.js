@@ -1,87 +1,131 @@
-const { Incident, Hero } = require('../models');
+const prisma = require('../db/prisma');
 
 const ALLOWED_SORT_COLUMNS = ['name', 'missions_count', 'created_at'];
+const SORT_COLUMN_MAP = {
+  name: 'name',
+  missions_count: 'missionsCount',
+  created_at: 'createdAt',
+};
+
+const AVAILABLE_HERO_WHERE = Object.freeze({ status: 'available' });
+
+const mapHero = (hero) => ({
+  id: hero.id,
+  name: hero.name,
+  power: hero.power,
+  status: hero.status,
+  missions_count: hero.missionsCount,
+  created_at: hero.createdAt,
+  updated_at: hero.updatedAt,
+});
+
+const mapIncident = (incident) => ({
+  id: incident.id,
+  location: incident.location,
+  district: incident.district,
+  level: incident.level,
+  status: incident.status,
+  hero_id: incident.heroId,
+  assigned_at: incident.assignedAt,
+  resolved_at: incident.resolvedAt,
+  created_at: incident.createdAt,
+  updated_at: incident.updatedAt,
+});
 
 const findAll = async ({ filters = {}, sort = {}, pagination = {} }) => {
+  const client = prisma;
   const { status, power } = filters;
   const { sortBy = 'created_at', sortOrder = 'asc' } = sort;
   const { limit, offset } = pagination;
 
   const where = {};
-
   if (status) where.status = status;
   if (power) where.power = power;
 
-  const column = ALLOWED_SORT_COLUMNS.includes(sortBy) ? sortBy : 'created_at';
+  const column = ALLOWED_SORT_COLUMNS.includes(sortBy) ? SORT_COLUMN_MAP[sortBy] : 'createdAt';
 
-  const { rows, count } = await Hero.findAndCountAll({
-    where,
-    attributes: ['id', 'name', 'power', 'status', 'missions_count', 'created_at', 'updated_at'],
-    order: [[column, sortOrder === 'desc' ? 'DESC' : 'ASC']],
-    limit,
-    offset,
-  });
+  const [rows, count] = await client.$transaction([
+    client.hero.findMany({
+      where,
+      orderBy: { [column]: sortOrder === 'desc' ? 'desc' : 'asc' },
+      take: limit,
+      skip: offset,
+    }),
+    client.hero.count({ where }),
+  ]);
 
-  const data = rows.map((hero) => hero.get({ plain: true }));
-  const total = Number(count) || 0;
-
-  return { data, total };
+  return { data: rows.map(mapHero), total: Number(count) || 0 };
 };
 
 const findById = async (id, transaction) => {
-  const options = { transaction };
-  if (transaction) {
-    options.lock = true;
-  }
-
-  const hero = await Hero.findByPk(id, options);
-  return hero ? hero.get({ plain: true }) : null;
+  const client = transaction || prisma;
+  const hero = await client.hero.findUnique({ where: { id } });
+  return hero ? mapHero(hero) : null;
 };
 
 const findAvailableById = async (id, transaction) => {
-  const options = { transaction };
-  if (transaction) {
-    options.lock = true;
-  }
-
-  const hero = await Hero.scope('available').findByPk(id, options);
-  return hero ? hero.get({ plain: true }) : null;
+  const client = transaction || prisma;
+  const hero = await client.hero.findFirst({
+    where: {
+      id,
+      ...AVAILABLE_HERO_WHERE,
+    },
+  });
+  return hero ? mapHero(hero) : null;
 };
 
 const findByName = async (name) => {
-  const hero = await Hero.findOne({ where: { name } });
-  return hero ? hero.get({ plain: true }) : null;
+  const hero = await prisma.hero.findUnique({ where: { name } });
+  return hero ? mapHero(hero) : null;
 };
 
 const create = async ({ name, power }) => {
-  const hero = await Hero.create({ name, power });
-  return hero.get({ plain: true });
+  const hero = await prisma.hero.create({ data: { name, power } });
+  return mapHero(hero);
 };
 
 const update = async (id, fields, transaction) => {
-  const [, rows] = await Hero.update(fields, {
+  const client = transaction || prisma;
+
+  const data = {};
+  if (fields.name !== undefined) data.name = fields.name;
+  if (fields.power !== undefined) data.power = fields.power;
+  if (fields.status !== undefined) data.status = fields.status;
+  if (fields.missions_count !== undefined) data.missionsCount = fields.missions_count;
+  if (fields.missionsCount !== undefined) data.missionsCount = fields.missionsCount;
+
+  const hero = await client.hero.update({
     where: { id },
-    returning: true,
-    transaction,
+    data,
   });
 
-  return rows[0] ? rows[0].get({ plain: true }) : null;
+  return mapHero(hero);
 };
 
 const findIncidentsForHero = async ({ heroId, pagination = {} }) => {
   const { limit, offset } = pagination;
+  const where = { heroId };
 
-  const { rows, count } = await Incident.findAndCountAll({
-    where: { hero_id: heroId },
-    order: [['assigned_at', 'DESC']],
-    limit,
-    offset,
-  });
+  const [rows, count] = await prisma.$transaction([
+    prisma.incident.findMany({
+      where,
+      orderBy: { assignedAt: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    prisma.incident.count({ where }),
+  ]);
 
-  const data = rows.map((incident) => incident.get({ plain: true }));
-  const total = Number(count) || 0;
-
-  return { data, total };
+  return { data: rows.map(mapIncident), total: Number(count) || 0 };
 };
 
-module.exports = { findAll, findById, findAvailableById, findByName, create, update, findIncidentsForHero };
+module.exports = {
+  AVAILABLE_HERO_WHERE,
+  findAll,
+  findById,
+  findAvailableById,
+  findByName,
+  create,
+  update,
+  findIncidentsForHero,
+};

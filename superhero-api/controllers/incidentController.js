@@ -36,10 +36,10 @@ const getById = async (req, res) => {
 // POST /api/v1/incidents
 const create = async (req, res) => {
   try {
-    const { location, level, district } = req.body || {};
+    const { location, level, district, categoryIds } = req.body || {};
     if (!location || !level)
       return res.status(400).json({ error: 'location and level are required' });
-    const incident = await incidentService.create({ location, level, district });
+    const incident = await incidentService.create({ location, level, district, categoryIds });
     res.status(201)
        .location(`/api/v1/incidents/${incident.id}`)
        .json({ data: incident });

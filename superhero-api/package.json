@@ -5,18 +5,22 @@
   "main": "index.js",
   "scripts": {
     "start": "node app.js",
-    "migrate": "sequelize db:migrate --config db/config/config.js --migrations-path db/migrations",
-    "migrate:rollback": "sequelize db:migrate:undo:all --config db/config/config.js --migrations-path db/migrations",
-    "seed": "sequelize db:seed:all --config db/config/config.js --seeders-path db/seeds/development",
-    "seed:test": "cross-env NODE_ENV=test sequelize db:seed:all --config db/config/config.js --seeders-path db/seeds/test",
-    "db:reset": "npm run migrate:rollback && npm run migrate && npm run seed",
+    "prisma:generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "seed": "prisma db seed",
+    "seed:test": "cross-env NODE_ENV=test node prisma/seed.test.js",
+    "db:reset": "prisma migrate reset --force --skip-seed && npm run seed",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@prisma/client": "^6.6.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "pg": "^8.19.0",
@@ -25,6 +29,7 @@
   "devDependencies": {
     "@faker-js/faker": "^10.3.0",
     "cross-env": "^7.0.3",
+    "prisma": "^6.6.0",
     "sequelize-cli": "^6.6.3"
   }
 }

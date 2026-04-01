@@ -1,60 +1,67 @@
-const { Op } = require('sequelize');
-const { Hero, Incident, sequelize } = require('../models');
+const prisma = require('../db/prisma');
 
 const getTotalHeroes = async () => {
-  return Hero.count();
+  const result = await prisma.$queryRaw`
+    SELECT COUNT(*)::int AS total
+    FROM heroes
+  `;
+  return result[0]?.total || 0;
 };
 
 const getTotalIncidents = async () => {
-  return Incident.count();
+  const result = await prisma.$queryRaw`
+    SELECT COUNT(*)::int AS total
+    FROM incidents
+  `;
+  return result[0]?.total || 0;
 };
 
 const getHeroesByStatus = async () => {
-  const rows = await Hero.findAll({
-    attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-    group: ['status'],
-    raw: true,
-  });
-  return rows.map((r) => ({ status: r.status, count: parseInt(r.count, 10) }));
+  return prisma.$queryRaw`
+    SELECT status, COUNT(*)::int AS count
+    FROM heroes
+    GROUP BY status
+    ORDER BY status ASC
+  `;
 };
 
 const getHeroesByPower = async () => {
-  const rows = await Hero.findAll({
-    attributes: ['power', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-    group: ['power'],
-    raw: true,
-  });
-  return rows.map((r) => ({ power: r.power, count: parseInt(r.count, 10) }));
+  return prisma.$queryRaw`
+    SELECT power, COUNT(*)::int AS count
+    FROM heroes
+    GROUP BY power
+    ORDER BY power ASC
+  `;
 };
 
 const getIncidentsByStatus = async () => {
-  const rows = await Incident.findAll({
-    attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-    group: ['status'],
-    raw: true,
-  });
-  return rows.map((r) => ({ status: r.status, count: parseInt(r.count, 10) }));
+  return prisma.$queryRaw`
+    SELECT status, COUNT(*)::int AS count
+    FROM incidents
+    GROUP BY status
+    ORDER BY status ASC
+  `;
 };
 
 const getIncidentsByLevel = async () => {
-  const rows = await Incident.findAll({
-    attributes: ['level', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
-    group: ['level'],
-    raw: true,
-  });
-  return rows.map((r) => ({ level: r.level, count: parseInt(r.count, 10) }));
+  return prisma.$queryRaw`
+    SELECT level, COUNT(*)::int AS count
+    FROM incidents
+    GROUP BY level
+    ORDER BY level ASC
+  `;
 };
 
 const getResolvedIncidentTimestamps = async () => {
-  return Incident.findAll({
-    where: {
-      status: 'resolved',
-      assigned_at: { [Op.ne]: null },
-      resolved_at: { [Op.ne]: null },
-    },
-    attributes: ['assigned_at', 'resolved_at'],
-    raw: true,
-  });
+  const status = 'resolved';
+
+  return prisma.$queryRaw`
+    SELECT assigned_at, resolved_at
+    FROM incidents
+    WHERE status = CAST(${status} AS "IncidentStatus")
+      AND assigned_at IS NOT NULL
+      AND resolved_at IS NOT NULL
+  `;
 };
 
 module.exports = {
